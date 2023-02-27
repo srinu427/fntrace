@@ -1,7 +1,11 @@
 #include <iostream>
+#include <mutex>
 #include <thread>
 #include <vector>
 #include <unordered_map>
+
+#include <dlfcn.h>
+#include <link.h>
 
 struct fn_details{
     void* func = nullptr;
@@ -13,10 +17,14 @@ struct fn_details{
 struct fn_call_history{
     std::vector<fn_details> fn_list;
 };
- 
-static std::unordered_map<std::thread::id, fn_details*> trace_per_thread;
-static std::mutex global_trace_lock;
 
+extern "C"{
+void __cyg_profile_func_enter (void *, void *) __attribute__((no_instrument_function));
+void __cyg_profile_func_exit (void *, void *) __attribute__((no_instrument_function));
+}
+
+std::unordered_map<std::thread::id, fn_details*> trace_per_thread;
+std::mutex global_trace_lock;
 
 void
 __attribute__ ((constructor, no_instrument_function))
@@ -52,21 +60,33 @@ trace_end (void)
 }
  
 void
-__attribute__ ((no_instrument_function))__cyg_profile_func_enter (void *func,  void *caller)
+__cyg_profile_func_enter (void *func,  void *caller)
 {
+    
     global_trace_lock.lock();
     std::thread::id this_id = std::this_thread::get_id();
-
+    
     fn_details* curr_fn_det = nullptr;
 
+    Dl_info a, b;
+    struct link_map* link_mapa;
+    struct link_map* link_mapb;
+    dladdr1((void*)func,&a,(void**)&link_mapa,RTLD_DL_LINKMAP);
+    dladdr1((void*)caller,&b,(void**)&link_mapb,RTLD_DL_LINKMAP);
+    printf("e %p %p %s\n", func-link_mapa->l_addr, caller-link_mapb->l_addr, link_mapa->l_name);
+    printf("fn %p %p\n", func, caller);
+
     if (trace_per_thread.find(this_id) != trace_per_thread.end()){
+        
         curr_fn_det = trace_per_thread[this_id];
     }
-
+    
     fn_details* tempfnd = new fn_details();
     tempfnd->func = func;
     tempfnd->caller = caller;
     tempfnd->parent = curr_fn_det;
+
+    
 
     if (curr_fn_det != nullptr) {
         curr_fn_det->called_fns.push_back(tempfnd);
@@ -77,7 +97,7 @@ __attribute__ ((no_instrument_function))__cyg_profile_func_enter (void *func,  v
 }
  
 void
-__attribute__ ((no_instrument_function))__cyg_profile_func_exit (void *func, void *caller)
+__cyg_profile_func_exit (void *func, void *caller)
 {
     global_trace_lock.lock();
     std::thread::id this_id = std::this_thread::get_id();
