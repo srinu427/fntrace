@@ -1,4 +1,14 @@
-import addr2line
+import subprocess
+import json
+
+def get_func_name(exec_path, addr):
+    process = subprocess.Popen("addr2line --demangle -f -e " + exec_path + " " + addr, shell=True,
+                           stdout=subprocess.PIPE, 
+                           stderr=subprocess.PIPE)
+    out, err = process.communicate()
+    out = out.decode()
+    out = out.split('\n')
+    return {"fname": out[0], "file": out[1].split(":")[0], "line": out[1].split(":")[1]}
 
 
 def main():
@@ -17,6 +27,12 @@ def main():
                 caller_func = sline[2].split("caller_func: ")[-1]
                 linecache[curr_tid] += [(func, caller, caller_func)]
     print(linecache)
+    parsed_func = {}
+    for tid in linecache:
+        parsed_func[tid] = []
+        for x in linecache[tid]:
+            parsed_func[tid] += [{"func": get_func_name("main", x[0]), "caller": get_func_name("main", x[1]), "caller_func": get_func_name("main", x[2])}]
+    print(json.dumps(parsed_func, indent=2))
 
 
 if __name__ == "__main__":
