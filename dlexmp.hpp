@@ -1,0 +1,1 @@
+void tell_hi();
