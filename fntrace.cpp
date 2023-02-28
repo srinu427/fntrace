@@ -13,6 +13,7 @@
 struct fn_details{
     void* func = nullptr;
     void* caller = nullptr;
+    void* caller_func = nullptr;
     fn_details* parent = nullptr;
     std::vector<fn_details*> called_fns;
 };
@@ -34,18 +35,20 @@ std::mutex global_trace_lock;
 void
 trace_begin (void)
 {
-    //std::cout << "trace lib init" << std::endl;
-    //trace_per_thread = new std::unordered_map<std::thread::id, fn_details*>();
-    std::cout << "trace lib init" << std::endl;
+    printf("trace lib init\n");
+    trace_per_thread = new std::unordered_map<std::thread::id, fn_details*>();
 }
  
 void
 trace_end (void)
 {
-    std::cout << "trace lib exit" << std::endl;
-    std::cout << "dumping trace" << std::endl;
-/*    for (std::unordered_map<std::thread::id, fn_details*>::iterator it = trace_per_thread->begin(); it != trace_per_thread->end(); it++){
+    printf("trace lib exit\n");
+    printf("dumping trace\n");
+    std::ofstream ofile;
+    ofile.open("trace_dump.txt");
+    for (std::unordered_map<std::thread::id, fn_details*>::iterator it = trace_per_thread->begin(); it != trace_per_thread->end(); it++){
 	std::cout << "Thread ID: " << it->first << std::endl;
+	ofile << "Thread ID: " << it->first << std::endl;
 	fn_details* curr_fnd = it->second;
         while (true){
             if (curr_fnd->called_fns.size() > 0){
@@ -53,6 +56,7 @@ trace_end (void)
             }
             else{
                 print_fnd(curr_fnd);
+                ofile << "func: " << curr_fnd->func << ", caller: " << curr_fnd->caller << ", caller_func: " << curr_fnd->caller_func << "\n";
                 curr_fnd = curr_fnd->parent;
                 if (curr_fnd == nullptr){
                     return;
@@ -62,13 +66,14 @@ trace_end (void)
             }
         }
     }
+    ofile.close();
     delete trace_per_thread;
-*/}
+}
  
 void
 __cyg_profile_func_enter (void *func,  void *caller)
 {
-/*    
+    
     global_trace_lock.lock();
     std::thread::id this_id = std::this_thread::get_id();
     
@@ -88,21 +93,23 @@ __cyg_profile_func_enter (void *func,  void *caller)
     tempfnd->func = func - link_mapa->l_addr;
     tempfnd->caller = caller - link_mapb->l_addr;
     tempfnd->parent = curr_fn_det;
+    tempfnd->caller_func = nullptr;
     
 
     if (curr_fn_det != nullptr) {
         curr_fn_det->called_fns.push_back(tempfnd);
+	tempfnd->caller_func = curr_fn_det->func;
     }
 
     (*trace_per_thread)[this_id] = tempfnd;
     print_fnd((*trace_per_thread)[this_id]);
     global_trace_lock.unlock();
-*/}
+}
  
 void
 __cyg_profile_func_exit (void *func, void *caller)
 {
-/*    global_trace_lock.lock();
+    global_trace_lock.lock();
     std::thread::id this_id = std::this_thread::get_id();
 
     fn_details* curr_fn_det = nullptr;
@@ -115,4 +122,4 @@ __cyg_profile_func_exit (void *func, void *caller)
         (*trace_per_thread)[this_id]=curr_fn_det;
     }
     global_trace_lock.unlock();
-*/}
+}
